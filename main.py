@@ -47,7 +47,7 @@ async def add_comment(comment: CreateComment) -> Comment:
 async def add_reply(comment_id: UUID, reply: Reply) -> Reply:
     try:
         the_comment = next(c for c in comments if c.id == comment_id)
-    except:
+    except StopIteration:
         raise HTTPException(status_code=404, detail="Comment not found")
     the_comment.replies.append(reply)
     return reply
@@ -57,7 +57,7 @@ async def add_reply(comment_id: UUID, reply: Reply) -> Reply:
 async def upvote_comment(comment_id: UUID) -> Comment:
     try:
         the_comment = next(c for c in comments if c.id == comment_id)
-    except:
+    except StopIteration:
         raise HTTPException(status_code=404, detail="Comment not found")
     the_comment.upvotes += 1
     return the_comment
