@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live AMA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .comment, .reply {
+            border-bottom: 1px solid #ccc;
+            padding: 10px 0;
+        }
+        .author {
+            font-weight: bold;
+            color: #333;
+        }
+        .text {
+            margin-top: 5px;
+            color: #555;
+        }
+        .upvotes {
+            margin-top: 5px;
+            color: #888;
+        }
+        #comment-form {
+            margin-bottom: 40px;
+        }
+        #comment-form textarea, .reply-form textarea {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 14px;
+        }
+        #comment-form button, .reply-form button, .upvote-button {
+            padding: 5px 10px;
+            font-size: 16px;
+        }
+        .replies {
+            margin-left: 20px;
+        }
+        .reply-form {
+            margin-top: 10px;
+            margin-left: 20px;
+        }
+        .upvote-button {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live AMA</h1>
+
+    <form id="comment-form">
+        <textarea id="comment" name="comment" placeholder="A topic people can ask you about" required></textarea>
+        <button type="submit">Add Topic</button>
+    </form>
+
+    <div id="comments-container"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let userName = localStorage.getItem('userName');
+
+            // Prompt user for their name if not already saved in local storage
+            if (!userName) {
+                userName = prompt("Please enter your name:");
+                if (userName) {
+                    localStorage.setItem('userName', userName);
+                } else {
+                    alert("Name is required to post comments.");
+                    return;
+                }
+            }
+
+            const commentsContainer = document.getElementById('comments-container');
+            const commentForm = document.getElementById('comment-form');
+
+            // Function to render comments and replies
+            function renderComment(commentObj) {
+                const commentDiv = document.createElement('div');
+                commentDiv.className = 'comment';
+                commentDiv.dataset.id = commentObj.id;
+
+                const authorDiv = document.createElement('div');
+                authorDiv.className = 'author';
+                authorDiv.textContent = commentObj.author;
+
+                const textDiv = document.createElement('div');
+                textDiv.className = 'text';
+                textDiv.textContent = commentObj.comment;
+
+                const upvotesSpan = document.createElement('span');
+                upvotesSpan.className = 'upvotes';
+                upvotesSpan.textContent = `Upvotes: ${commentObj.upvotes}`;
+
+                const upvoteButton = document.createElement('button');
+                upvoteButton.className = 'upvote-button';
+                upvoteButton.textContent = 'Upvote';
+                upvoteButton.addEventListener('click', () => {
+                    fetch(`/api/comment/${commentObj.id}/upvote`, {
+                        method: 'POST'
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        upvotesSpan.textContent = `Upvotes: ${data.upvotes}`;
+                    })
+                    .catch(error => {
+                        console.error('Error upvoting comment:', error);
+                        alert('Failed to upvote comment.');
+                    });
+                });
+
+                const repliesDiv = document.createElement('div');
+                repliesDiv.className = 'replies';
+
+                // Render replies
+                commentObj.replies.forEach(reply => {
+                    const replyDiv = document.createElement('div');
+                    replyDiv.className = 'reply';
+
+                    const replyAuthorDiv = document.createElement('div');
+                    replyAuthorDiv.className = 'author';
+                    replyAuthorDiv.textContent = reply.author;
+
+                    const replyTextDiv = document.createElement('div');
+                    replyTextDiv.className = 'text';
+                    replyTextDiv.textContent = reply.comment;
+
+                    replyDiv.appendChild(replyAuthorDiv);
+                    replyDiv.appendChild(replyTextDiv);
+                    repliesDiv.appendChild(replyDiv);
+                });
+
+                // Add reply form
+                const replyForm = document.createElement('form');
+                replyForm.className = 'reply-form';
+
+                const replyTextInput = document.createElement('textarea');
+                replyTextInput.name = 'comment';
+                replyTextInput.placeholder = 'Your question';
+                replyTextInput.required = true;
+
+                const replyButton = document.createElement('button');
+                replyButton.type = 'submit';
+                replyButton.textContent = 'Add question';
+
+                replyForm.appendChild(replyTextInput);
+                replyForm.appendChild(replyButton);
+
+                replyForm.addEventListener('submit', event => {
+                    event.preventDefault();
+
+                    const comment = replyTextInput.value;
+
+                    fetch(`/api/comment/${commentObj.id}/reply`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ author: userName, comment })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(newReply => {
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error posting reply:', error);
+                        alert('Failed to post reply.');
+                    });
+                });
+
+                commentDiv.appendChild(authorDiv);
+                commentDiv.appendChild(textDiv);
+                commentDiv.appendChild(upvotesSpan);
+                commentDiv.appendChild(upvoteButton);
+                commentDiv.appendChild(repliesDiv);
+                commentDiv.appendChild(replyForm);
+                commentsContainer.appendChild(commentDiv);
+            }
+
+            // Fetch and render comments
+            fetch('/api/comments')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(renderComment);
+                })
+                .catch(error => {
+                    console.error('Error fetching comments:', error);
+                    commentsContainer.textContent = 'Failed to load comments.';
+                });
+
+            // Handle form submission
+            commentForm.addEventListener('submit', event => {
+                event.preventDefault();
+
+                const comment = document.getElementById('comment').value;
+
+                fetch('/api/comment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ author: userName, comment })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(newComment => {
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error posting comment:', error);
+                    alert('Failed to post comment.');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
